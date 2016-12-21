@@ -1,18 +1,18 @@
 {
-    "name": "miragesoft/yii2-basicfilemanager",
+    "name": "adzpire/yii2-basicfilemanager",
     "description": "Basic Filemanager",
     "type": "yii2-extension",
     "keywords": ["yii2","extension"],
     "license": "GPL-3.0",
     "minimum-stability": "stable",
     "support": {
-        "source": "https://github.com/miragesoft/yii2-basicfilemanager.git",
-        "issues": "https://github.com/miragesoft/yii2-basicfilemanager/issues"
+        "source": "https://github.com/adzpire/yii2-basicfilemanager.git",
+        "issues": "https://github.com/adzpire/yii2-basicfilemanager/issues"
     },
     "authors": [
         {
-            "name": "Mirage Studio TH",
-            "email": "miragestudioth@gmail.com",
+            "name": "adzpire KWM",
+            "email": "adz_pire@hotmail.com",
             "role" : "Developer"
         }
     ],
@@ -23,7 +23,7 @@
     },
     "autoload": {
         "psr-4": {
-            "mirage\\basicfilemanager\\": ""
+            "adzpire\\basicfilemanager\\": ""
         }
     },
     "extra": {
