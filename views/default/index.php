@@ -1,0 +1,436 @@
+<?php
+use yii\helpers\Html;
+use yii\helpers\Url;
+use yii\helpers\Json;
+use yii\bootstrap\ActiveForm;
+use mirage\basicfilemanager\components\FileHelper;
+
+$request = Yii::$app->request;
+//print_r($request->getQueryParams());
+?>
+<?php
+$allowUpload = false;
+if($request->get('upload') || $request->get('upload') === null){
+	$allowUpload = true;
+}
+
+$allowCreateDir = false;
+if($request->get('createDir') || $request->get('createDir') === null){
+	$allowCreateDir = true;
+}
+$allowCreateDir = false;
+if($request->get('createDir') || $request->get('createDir') === null){
+	$allowCreateDir = true;
+}
+
+
+?>
+<div class="basicfilemanager">
+	<div class="waiting">
+		<div class="alert alert-warning" role="alert">
+			<span class="glyphicon glyphicon-refresh glyphicon-refresh-animate"></span>
+			 Loading...
+		</div>
+	</div>
+	<?php //var_dump($request->get('upload')); ?>
+	<div class="uploader well well-sm">
+		<div class="row">
+			<div class="col-xs-6">
+				<?php //echo ($request->get('selectFileOnly')) ? '123' : '456'; ?>
+				<?php if($allowUpload){ ?>
+				<?php $form = ActiveForm::begin(['action' => array_merge(['upload'], Yii::$app->request->queryParams), 'options' => ['enctype' => 'multipart/form-data']]); ?>
+			<?= $form->field($model, 'files[]', ['options'=>['class'=>'uploadfiles']])->fileInput(['multiple' => true,])->label('Upload File') ?>
+				Upload
+				<div class="input-group">
+					<input type="text" class="form-control" placeholder="Files" readonly="readonly">
+					<span class="input-group-btn">
+						<button type="button" class="btn btn-default chooser">
+							<i class="glyphicon glyphicon-open-file"></i>
+						</button>
+						<button type="submit" class="btn btn-success start-upload" disabled="disabled">
+							<i class="glyphicon glyphicon-cloud-upload"></i>
+						</button>
+						<button type="reset" class="btn btn-danger form-reset">
+							<i class="glyphicon glyphicon-trash"></i>
+						</button>
+					</span>
+				</div><!-- /input-group -->
+			
+				
+				<div class="progress">
+					<div class="progress-bar" role="progressbar" aria-valuenow="0" aria-valuemin="0" aria-valuemax="100" style="width: 0.1%;">
+						0%
+					</div>
+				</div>
+				<?php ActiveForm::end(); ?>
+				<?php }else{
+					echo Html::tag('h4', 'File upload not allow !!', ['class'=>'text-danger text-center']);
+				}
+				?>
+			</div>
+			<div class="col-xs-6">
+				<?php if($allowCreateDir){ ?>
+				Create directory
+				<div class="input-group">
+					<input type="text" name="dirname" class="form-control dirname" placeholder="New directory">
+					<span class="input-group-btn">
+					<button type="button" class="btn btn-warning create-dir">
+						<i class="glyphicon glyphicon-ok"></i>
+					</button>
+					</span>
+				</div><!-- /input-group -->
+				<?php }else{
+					echo Html::tag('h4', 'Create directory not allow !!', ['class'=>'text-danger text-center']);
+				}
+				?>
+			</div>
+			
+		</div>
+		<div class="row">
+			<div class="col-xs-12">
+			</div>
+		</div>
+		<div class="row">
+			<div class="col-xs-12">
+				<div id="gallery"></div>
+			</div>
+		</div>
+	</div>
+	<div class="item-list">
+		<?php echo $this->render('item-list', ['model' => $model, 'files'=>$files]); ?>
+		<?php //echo $this->context->actionFileList(); ?>
+	</div>
+</div>
+
+<?php
+$itemListUrl = Url::to(['item-list']);
+$changeDirUrl = Url::to(['change-directory']);
+$navDirUrl = Url::to(['nav-directory']);
+$itemInfoUrl = Url::to(['item-info', 'selectFileOnly' => $request->get('selectFileOnly')]);
+$fileRenameUrl = Url::to(['item-rename']);
+$fileDeleteUrl = Url::to(['item-delete']);
+$createDirUrl = Url::to(['create-directory']);
+$fileBrowseId = Html::getInputId($model, 'files');
+
+$changeDir = $request->get('changeDir');
+$params = $request->getQueryParams();
+if(isset($params['subDir'])){
+	unset($params['subDir']);
+}
+$queryParams = Json::encode($params);
+
+$fieldID = $request->get('fieldID');
+$modalID = $request->get('modalID');
+
+//$fieldID = Yii::$app->request->get('fieldID');
+if($allowUpload){
+$js['upload'] = <<<JS
+$(document).on('submit', '#$form->id', function(e) {
+	e.preventDefault();
+	var formData = new FormData(this);
+	$.ajax({
+		xhr: function() {
+			var xhr = new window.XMLHttpRequest();
+
+			xhr.upload.addEventListener("progress", function(evt) {
+			if (evt.lengthComputable) {
+				var percentComplete = evt.loaded / evt.total;
+				percentComplete = parseInt(percentComplete * 100);
+				//console.log(percentComplete);
+				var pg = $('.uploader .progress-bar')
+				pg.attr('aria-valuenow', percentComplete);
+				pg.html(percentComplete+'%');
+				pg.css('width', percentComplete+'%');
+				if (percentComplete === 100) {
+					$('#gallery').html('');
+					pg.attr('aria-valuenow', 0);
+					pg.html('0%');
+					pg.css('width', '0.1%');
+				}
+
+			}
+		}, false);
+
+			return xhr;
+		},
+		type:'POST',
+		url: $(this).attr('action'),
+		data:formData,
+		//dataType: 'json',
+		cache:false,
+		contentType: false,
+		processData: false,
+		success:function(data){
+			console.log(data.var);
+			if(data.process){
+				loadfilelist();
+			}else{
+				alert(data.message);
+			}
+			$('#$form->id')[0].reset();
+			//alert(data.message);
+		},
+		error: function(data){
+			console.log("error");
+			console.log(data);
+		}
+	});
+});
+JS;
+}
+
+$js['click-item'] = <<<JS
+$(document).on('click', '.basicfilemanager .item', function(e) {
+	e.preventDefault();
+	$.get( "$itemInfoUrl",{ name: $(this).attr('data-basename'), fieldID:'$fieldID' }, function( data ) {
+		$( ".file-info" ).html( data );
+		//alert(data);
+	});
+});
+JS;
+
+//if($request->get('changeDir')){
+$js['change-dir'] = <<<JS
+$(document).on('dblclick', '.basicfilemanager .item.folder', function(e) {
+	e.preventDefault();
+	$.get( "$changeDirUrl",{ name: $(this).attr('data-basename')}, function( data ) {
+		//$( ".file-info" ).html( data );
+		console.log(data);
+		if(data.process){
+			loadfilelist();
+		}else{
+			alert(data.message);
+		}
+	});
+	//loadfilelist($(this).attr('data-basename'));
+});
+
+$(document).on('click', '.nav-dir', function(e) {
+	e.preventDefault();
+	$.get( "$navDirUrl",{ path: $(this).attr('href')}, function( data ) {
+		console.log(data);
+		if(data.process){
+			loadfilelist();
+		}
+	});
+});
+JS;
+//}
+
+//if($request->get('fieldID')){
+	$modalId = $request->get('modalID');
+	$afterFnc = $modalId.'_after_selected_function';
+	$session = Yii::$app->session;
+	if(empty($session->get('path'))){
+		$slash = '';
+	}else{
+		$slash = '/';
+	}
+	$uploadUrl = Yii::$app->homeUrl.$model->routes->uploadPath.'/'.$model->routes->baseUrl;
+	$returnType = $request->get('returnType');
+	$callbackValue = '';
+	$callbackValue .= ($request->get('fieldID')) ? "inputField.val(returnVal);\nmodal.modal('toggle');\n" : null;
+	$callbackValue .= ($request->get('CKEditor')) ? "returnFileUrl(returnVal);\n" : null;
+	$js['action-select'] = <<<JS
+$(document).on('click', '.select-item', function(e) {
+	e.preventDefault();
+	var inputField = parent.jQuery("#$fieldID");
+	var modal = parent.jQuery("#$modalID");
+	var returnType = '$returnType';
+	var dirname = $(document).find('.txt-dirname').val();
+	var basename = $(document).find('.txt-basename').val();
+	var uploadUrl = '$uploadUrl';
+	if(dirname === ''){
+		behind = '';
+	}else{
+		behind = dirname+'/';
+	}
+	switch(returnType){
+		case 'url':
+			returnVal = uploadUrl+behind+basename;
+			break;
+		case 'absolute':
+			returnVal = window.location.origin+uploadUrl+behind+basename;
+			break;
+		case 'behind':
+			returnVal = behind+basename;
+			break;
+		case 'basename':
+			returnVal = basename;
+			break;
+		default:
+			returnVal = uploadUrl+behind+basename;
+			break;
+
+	}
+	$callbackValue
+	
+	if(jQuery.isFunction(parent.after_selected_function)){
+		parent.after_selected_function();
+	}
+
+	if(jQuery.isFunction(parent.$afterFnc)){
+		parent.$afterFnc();
+	}
+});
+
+
+$(document).on('dblclick', '.basicfilemanager .item.file', function(e) {
+	e.preventDefault();
+	//alert($(this).attr('data-basename'));
+	$('.select-item').trigger("click");
+});
+JS;
+//}
+
+$js['action-rename'] = <<<JS
+$(document).on('click', '.rename-item', function(e) {
+	e.preventDefault();
+	var oldname = $(document).find('.txt-basename').val();
+	var name = prompt("Please enter your name", oldname);
+	if(name !== null){
+		$.get( "$fileRenameUrl",{ oldname:oldname, name: name }, function( data ) {
+			if(data.process){
+				loadfilelist();
+			}else{
+				alert(data.message);
+			}
+		});
+	}
+});
+JS;
+
+$js['action-delete'] = <<<JS
+$(document).on('click', '.delete-file', function(e) {
+	e.preventDefault();
+	var basename = $(document).find('.txt-basename').val();
+	if(confirm('Delete "'+basename+'" ?')){
+		$.get( "$fileDeleteUrl",{ name: basename }, function( data ) {
+			if(data.process){
+				loadfilelist();
+			}else{
+				alert(data.message);
+			}
+		});
+	}
+});
+JS;
+
+$js['action-chooser'] = <<<JS
+$(document).on('click', '.chooser', function(e) {
+	e.preventDefault();
+	$('#$fileBrowseId').trigger("click");
+});
+JS;
+
+$js['action-reset'] = <<<JS
+$(document).on('click', '.form-reset', function(e) {
+	$('#gallery').html('')
+});
+JS;
+
+//if($request->get('createDir')){
+$js['action-create-dir'] = <<<JS
+$(document).on('click', '.create-dir', function(e) {
+	e.preventDefault();
+	//var name = prompt("Please enter your name", "new directory");
+	var name = $('.dirname').val();
+	if(name == ''){
+		alert('Please input your directory name first');
+		$('.dirname').focus();
+	}else{
+		$.get( "$createDirUrl",{ name: name }, function( data ) {
+			if(data.process){
+				loadfilelist();
+				$('.dirname').val('');
+			}else{
+				alert(data.message);
+			}
+		});
+	}
+});
+JS;
+//}
+
+if($allowUpload){
+$js['action-after-choose'] = <<<JS
+function previewImage(file) {
+	var galleryId = "gallery";
+
+	var gallery = document.getElementById(galleryId);
+	var imageType = /image.*/;
+
+	if (!file.type.match(imageType)) {
+	    throw "File Type must be an image";
+	}
+
+	var thumb = document.createElement("div");
+	thumb.classList.add('thumbnail');
+
+	var img = document.createElement("img");
+	img.file = file;
+	thumb.appendChild(img);
+	gallery.appendChild(thumb);
+
+	// Using FileReader to display the image content
+	var reader = new FileReader();
+	reader.onload = (function(aImg) { return function(e) { aImg.src = e.target.result; }; })(img);
+	reader.readAsDataURL(file);
+}
+
+var uploadfiles = document.querySelector('#$fileBrowseId');
+var startupload = document.querySelector('.start-upload');
+uploadfiles.addEventListener('change', function () {
+	var gallery = document.getElementById('gallery');
+	gallery.innerHTML = '';
+	var files = this.files;
+	console.log(files);
+	if(files.length > 0){
+		startupload.removeAttribute("disabled");
+		for(var i=0; i<files.length; i++){
+			previewImage(this.files[i]);
+			//console.log(this.files[i].name);
+		}
+	}else{
+		startupload.setAttribute("disabled", "disabled");
+	}
+}, false);
+JS;
+}
+
+$this->registerJs(implode("\n", $js));
+
+
+$this->registerJs("
+/*$(document).on({
+    ajaxStart: function() { $('body').addClass(\"loading\");    },
+    ajaxStop: function() { $('body').removeClass(\"loading\"); }    
+});*/
+");
+
+
+$jsHead['loadfilelist'] = <<<JSHEAD
+function loadfilelist(subdir=''){
+	$.get( "$itemListUrl", $queryParams, function( data ) {
+		$( ".item-list" ).html( data );
+	});
+}
+
+// Helper function to get parameters from the query string.
+function getUrlParam( paramName ) {
+	var reParam = new RegExp( '(?:[\?&]|&)' + paramName + '=([^&]+)', 'i' );
+	var match = window.location.search.match( reParam );
+
+	return ( match && match.length > 1 ) ? match[1] : null;
+}
+
+// Simulate user action of selecting a file to be returned to CKEditor.
+function returnFileUrl(val) {
+
+	var funcNum = getUrlParam( 'CKEditorFuncNum' );
+	window.opener.CKEDITOR.tools.callFunction( funcNum, val );
+	window.close();
+}
+JSHEAD;
+
+$this->registerJs(implode("\n", $jsHead),$this::POS_HEAD);
